@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snapchat Video Downloader — Without Watermark</title>
+<meta name="description" content="Download Snapchat Spotlight and Snap videos without watermark and without username logo. Paste the link, get the clean video with clear background — no blur.">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #FFFC00;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #fff; border-radius: 20px; max-width: 560px; width: 100%;
+    padding: 36px 30px; box-shadow: 0 12px 40px rgba(0,0,0,.18); text-align: center;
+  }
+  h1 { font-size: 1.7rem; margin-bottom: 8px; }
+  h1 span { background: #000; color: #FFFC00; padding: 2px 10px; border-radius: 8px; }
+  p.sub { color: #555; margin-bottom: 24px; font-size: .95rem; }
+  .row { display: flex; gap: 8px; }
+  input {
+    flex: 1; padding: 13px 14px; border: 2px solid #ddd; border-radius: 10px;
+    font-size: .95rem; outline: none;
+  }
+  input:focus { border-color: #000; }
+  button {
+    background: #000; color: #FFFC00; border: none; padding: 13px 20px;
+    border-radius: 10px; font-weight: 700; cursor: pointer; font-size: .95rem;
+  }
+  button:disabled { opacity: .55; cursor: wait; }
+  #msg { margin-top: 16px; font-size: .92rem; min-height: 20px; color: #b00020; }
+  #ok { margin-top: 6px; font-size: .92rem; color: #0a7a28; display: none; }
+  #result { display: none; margin-top: 10px; }
+  #result video { max-width: 100%; border-radius: 12px; margin-bottom: 14px; }
+  .dl {
+    display: inline-block; background: #000; color: #FFFC00; border: none;
+    padding: 13px 26px; border-radius: 10px; font-weight: 700; cursor: pointer;
+    font-size: .95rem;
+  }
+  .orig { display: block; margin-top: 10px; font-size: .83rem; color: #777; }
+  .steps { margin-top: 26px; text-align: left; color: #444; font-size: .9rem; line-height: 1.7; }
+  .steps b { color: #000; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1><span>Snap</span> Video Downloader</h1>
+    <p class="sub">Download Snapchat Spotlight &amp; Snap videos <b>without watermark</b> and <b>without username logo</b> — clear background, no blur.</p>
+
+    <div class="row">
+      <input id="url" type="url" placeholder="Paste Snapchat link here…">
+      <button id="go">Get Video</button>
+    </div>
+    <div id="msg"></div>
+    <div id="ok"></div>
+
+    <div id="result">
+      <div id="preview"></div><br>
+      <button class="dl" id="cleanBtn">⬇ Download — No Watermark</button>
+      <a class="orig" id="origLink" href="#" target="_blank">Download original video instead</a>
+    </div>
+
+    <div class="steps">
+      <b>How to use:</b><br>
+      1. Open Snapchat and find the video (Spotlight or Snap).<br>
+      2. Tap <b>Share → Copy Link</b>.<br>
+      3. Paste the link above and press <b>Get Video</b>.<br>
+      4. Press <b>Download — No Watermark</b>. The watermark is removed and the background stays clear — no blur.
+    </div>
+  </div>
+
+<script>
+const go = document.getElementById('go');
+const cleanBtn = document.getElementById('cleanBtn');
+const msg = document.getElementById('msg');
+const ok = document.getElementById('ok');
+const result = document.getElementById('result');
+const preview = document.getElementById('preview');
+const origLink = document.getElementById('origLink');
+let currentUrl = '';
+
+go.addEventListener('click', async () => {
+  const url = document.getElementById('url').value.trim();
+  msg.textContent = ''; ok.style.display = 'none'; result.style.display = 'none';
+  if (!url) { msg.textContent = 'Please paste a Snapchat link first.'; return; }
+  currentUrl = url;
+  go.disabled = true; go.textContent = 'Fetching…';
+  try {
+    const res = await fetch('/api/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.textContent = data.error || 'Something went wrong.'; return; }
+    preview.innerHTML = '';
+    const v = document.createElement('video');
+    v.src = data.video; v.controls = true; v.poster = data.thumbnail || '';
+    preview.appendChild(v);
+    origLink.href = '/download?url=' + encodeURIComponent(data.video);
+    result.style.display = 'block';
+  } catch (e) {
+    msg.textContent = 'Network error. Please try again.';
+  } finally {
+    go.disabled = false; go.textContent = 'Get Video';
+  }
+});
+
+cleanBtn.addEventListener('click', async () => {
+  msg.textContent = ''; ok.style.display = 'none';
+  cleanBtn.disabled = true; cleanBtn.textContent = 'Removing watermark… please wait';
+  try {
+    const res = await fetch('/api/download-clean', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: currentUrl })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      msg.textContent = data.error || 'Processing failed. Try the original download below.';
+      return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'snapchat-no-watermark.mp4';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    ok.textContent = 'Done — clean video downloaded, no watermark.';
+    ok.style.display = 'block';
+  } catch (e) {
+    msg.textContent = 'Network error. Please try again.';
+  } finally {
+    cleanBtn.disabled = false; cleanBtn.textContent = '⬇ Download — No Watermark';
+  }
+});
+</script>
+</body>
+</html>
